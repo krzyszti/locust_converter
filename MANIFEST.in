@@ -1,0 +1,2 @@
+include README.md
+include locust_converter/locustfile.template

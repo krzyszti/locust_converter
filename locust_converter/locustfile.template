@@ -1,0 +1,26 @@
+from locust import HttpLocust, TaskSet, task, between
+
+
+HEADERS = {}
+
+class UserBehavior(TaskSet):
+    urls = [
+        $urls
+    ]
+
+    def on_start(self):
+        for url in self.urls:
+            @task
+            def user_task(self, url=url):
+                self.client.request(**url, headers=HEADERS)
+
+            self.schedule_task(user_task)
+
+        @task
+        def boilerplate_task(self):
+            pass
+
+
+class WebsiteUser(HttpLocust):
+    task_set = UserBehavior
+    wait_time = between(5, 9)
