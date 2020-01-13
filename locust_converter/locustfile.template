@@ -1,7 +1,6 @@
-from locust import HttpLocust, TaskSet, task, between
+from locust import HttpLocust, TaskSet, task, seq_task, between
 
-
-HEADERS = {}
+$additional_variables
 
 class UserBehavior(TaskSet):
     urls = [
@@ -9,11 +8,11 @@ class UserBehavior(TaskSet):
     ]
 
     def on_start(self):
-        for url in self.urls:
-            @task
+        for i, url in enumerate(self.urls):
+            @seq_task(i)
             def user_task(self, url=url):
-                self.client.request(**url, headers=HEADERS)
-
+                response = self.client.request(**url)
+                self.response = response.json()
             self.schedule_task(user_task)
 
         @task
