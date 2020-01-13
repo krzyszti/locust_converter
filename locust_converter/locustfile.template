@@ -3,16 +3,43 @@ from locust import HttpLocust, TaskSet, task, seq_task, between
 $additional_variables
 
 class UserBehavior(TaskSet):
+    variables = {}
+
     urls = [
         $urls
     ]
+
+    def format_dictionary(self, dictionary):
+        new_dict = {}
+        for key, value in dictionary.items():
+            if type(value) is dict:
+                new_dict[key] = self.format_dictionary(value)
+            elif type(value) is str:
+                new_dict[key] = value.format(**self.variables)
+            else:
+                new_dict[key] = value
+        return new_dict
+
+
+    @staticmethod
+    def multiple_get(item, keys):
+        new_item = item.get(keys[0])
+        if not new_item:
+            return
+        for key in keys[1:]:
+            new_item = new_item.get(key)
+            if not new_item:
+                return
+        return new_item
+
 
     def on_start(self):
         for i, url in enumerate(self.urls):
             @seq_task(i)
             def user_task(self, url=url):
-                response = self.client.request(**url)
-                self.response = response.json()
+                response = self.client.request(**self.format_dictionary(url))
+                response_json = response.json()
+                $post_processor
             self.schedule_task(user_task)
 
         @task

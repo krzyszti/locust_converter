@@ -15,7 +15,7 @@ HEADER_VALUE_TAG = 'stringProp[@name="Header.value"]'
 
 def is_valid_file(parser_handler, filename):
     if not os.path.exists(filename):
-        parser_handler.error(f"The file {filename} does not exist!")
+        parser_handler.error(f'The file {filename} does not exist!')
     else:
         return filename
 
@@ -33,7 +33,7 @@ def get_element_tags(element, test_tag='.//HTTPSamplerProxy'):
 
 
 def get_attribute_value(element, attribute_name=''):
-    return element.find(f'stringProp[@name="{attribute_name}"]').text
+    return element.find(f'stringProp[@name="{attribute_name}"]').text.replace('$', '')
 
 
 def get_params(element):
@@ -42,7 +42,7 @@ def get_params(element):
         if not node.text:
             return
         try:
-            return str(json.loads(node.text))
+            return str(json.loads(node.text)).replace('$', '')
         except JSONDecodeError:
             return
 
@@ -53,7 +53,9 @@ def get_header(element, path='HeaderManager/collectionProp/elementProp'):
         return
     headers = {}
     for element_prop in node:
-        headers[element_prop.find(HEADER_NAME_TAG).text] = element_prop.find(HEADER_VALUE_TAG).text
+        key = element_prop.find(HEADER_NAME_TAG).text.replace('$', '')
+        value = element_prop.find(HEADER_VALUE_TAG).text.replace('$', '')
+        headers[key] = value
     return headers
 
 
@@ -74,9 +76,8 @@ def get_test_case_header(element):
     return get_header(element.getnext())
 
 
-def get_urls_from_xml(filename):
+def get_urls_from_xml(root):
     urls = []
-    root = get_xml_root(filename=filename)
     base_header = get_base_header(root)
     for element in get_element_tags(root):
         enabled = element.attrib.get('enabled')
@@ -90,12 +91,33 @@ def get_urls_from_xml(filename):
     return ''.join(urls)
 
 
+def get_json_path(json_path_exprs):
+    return json_path_exprs[1:].split(".")[1:]
+
+
+def get_post_processors(element):
+    result = ''
+    json_post_processors = element.findall('.//JSONPostProcessor')
+    for json_post_processor in json_post_processors:
+        variable_name = json_post_processor.find('stringProp[@name="JSONPostProcessor.referenceNames"]').text
+        json_path_exprs = json_post_processor.find('stringProp[@name="JSONPostProcessor.jsonPathExprs"]').text
+        json_path = get_json_path(json_path_exprs)
+        result += f'self.variables["{variable_name}"] = self.multiple_get(response_json, {json_path}) or self.variables["{variable_name}"]\n                '  # This is not a mistake
+    return result
+
+
 def generate_file(base_file, filename='locustfile.py'):
-    urls = get_urls_from_xml(filename=base_file)
+    xml_root = get_xml_root(filename=base_file)
+    urls = get_urls_from_xml(root=xml_root)
     additional_variables = ''
+    post_processor = get_post_processors(element=xml_root)
     with open(f'{pathlib.Path(__file__).parent}/locustfile.template') as template:
         template_file = Template(template.read())
-        result_data = template_file.substitute(urls=urls, additional_variables=additional_variables)
+        result_data = template_file.substitute(
+            urls=urls,
+            additional_variables=additional_variables,
+            post_processor=post_processor
+        )
 
     with open(filename, 'w') as file:
         file.write(FormatCode(result_data)[0])
