@@ -53,9 +53,12 @@ def get_header(element, path='HeaderManager/collectionProp/elementProp'):
         return
     headers = {}
     for element_prop in node:
-        key = element_prop.find(HEADER_NAME_TAG).text.replace('$', '')
-        value = element_prop.find(HEADER_VALUE_TAG).text.replace('$', '')
-        headers[key] = value
+        key_element = element_prop.find(HEADER_NAME_TAG).text
+        value_element = element_prop.find(HEADER_VALUE_TAG).text
+        if key_element and value_element:
+            key = key_element.replace('$', '')
+            value = value_element.replace('$', '')
+            headers[key] = value
     return headers
 
 
